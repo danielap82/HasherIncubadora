@@ -54,6 +54,7 @@ void sensorInit() {
     sht4.setPrecision(SHT4X_HIGH_PRECISION);
     sht4.setHeater(SHT4X_NO_HEATER);
     lastValidSensorMillis = millis();
+    Serial.println("SHT4x inicializado correctamente");
   }
 }
 
@@ -75,8 +76,8 @@ void leerSensor() {
   if (newH > 100 || newT > 80) lecturaValida = false;
 
   if (lecturaValida) {
-    h = newT;
-    t = newH;
+    t = newT;
+    h = newH;
     lastValidSensorMillis = millis();
   } else {
     Serial.println("⚠ Lectura inválida del sensor SHT4x");

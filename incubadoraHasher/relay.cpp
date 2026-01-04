@@ -3,20 +3,28 @@
 #include "config.h"
 
 const int relePin = 12; // D6 NodeMCU
+
 static bool releActivo = false;
 static unsigned long ultimoRiego = 0;
 
+// Registro de última activación
+unsigned long relayLastActivation = 0;
+
+// Protección anti-bloqueo: tiempo máximo que el relé puede estar ON seguido
+const unsigned long RELAY_MAX_ON_TIME = 300000; // 5 minutos
+
 void relayInit() {
   pinMode(relePin, OUTPUT);
-  // Relé activo en LOW → reposo HIGH
-  digitalWrite(relePin, HIGH);
+  digitalWrite(relePin, HIGH); // Relé activo en LOW → reposo HIGH
   releActivo = false;
+  relayLastActivation = 0;
 }
 
 void relaySet(bool on) {
   releActivo = on;
   if (on) {
     digitalWrite(relePin, LOW);
+    relayLastActivation = millis();
   } else {
     digitalWrite(relePin, HIGH);
   }
@@ -27,6 +35,14 @@ bool relayIsOn() {
 }
 
 void relayLoop() {
+  // Protección anti-bloqueo: si por lo que sea se queda encendido demasiado tiempo, lo apagamos
+  if (releActivo && relayLastActivation > 0) {
+    if (millis() - relayLastActivation > RELAY_MAX_ON_TIME) {
+      Serial.println("Protección anti-bloqueo: relé llevaba demasiado tiempo activado. Apagando...");
+      relaySet(false);
+    }
+  }
+
   // Control automático solo si el sensor está OK
   if (!sensorIsOK()) return;
 
@@ -34,11 +50,17 @@ void relayLoop() {
 
   if (ahora - ultimoRiego >= cfg.tiempoEspera) {
     if (sensorGetHum() < cfg.umbralHumedad) {
-      Serial.println("Humedad por debajo del umbral. Activando actuador...");
+      Serial.println("Humedad por debajo del umbral. Activando actuador (modo automático)...");
       relaySet(true);
       delay(cfg.tiempoRiego);
       relaySet(false);
       ultimoRiego = millis();
     }
   }
+}
+
+// Segundos desde la última activación
+unsigned long relayGetSecondsSinceActivation() {
+  if (relayLastActivation == 0) return 0;
+  return (millis() - relayLastActivation) / 1000;
 }

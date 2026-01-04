@@ -17,7 +17,7 @@ void setup() {
   relayInit();     // Relé primero (para dejarlo en reposo)
   sensorInit();    // Sensor SHT4x
   wifiInit();      // WiFi STA/AP según config
-  mqttInit();      // Configura MQTT (a partir de cfg)
+ // mqttInit();      // Configura MQTT (a partir de cfg)
   webInit();       // Webserver, OTA, API, manual
 
   Serial.println("Setup completo. Incubadora Hasher lista.");
@@ -35,5 +35,5 @@ void loop() {
   relayLoop();
 
   // MQTT (reconexión, publicación, recepción)
-  mqttLoop();
+ // mqttLoop();
 }
