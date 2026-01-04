@@ -1,8 +1,8 @@
 #include <Wire.h>
-#include "Adafruit_SHT4x.h"
+#include <Adafruit_SHT31.h>
 #include "sensor.h"
 
-Adafruit_SHT4x sht4;
+Adafruit_SHT31 sht31 = Adafruit_SHT31();
 
 // Variables de lectura actual
 float h = 0.0f, t = 0.0f;
@@ -23,6 +23,23 @@ unsigned long lastValidSensorMillis = 0;
 const unsigned long SENSOR_TIMEOUT = 180000; // 3 minutos
 
 // ----------------------------------------------------
+// Inicialización del bus I2C según la placa
+// ----------------------------------------------------
+void initI2C() {
+#if defined(ESP8266)
+    // NodeMCU / Wemos D1 Mini
+    Wire.begin(D2, D1);   // SDA = D2 (GPIO4), SCL = D1 (GPIO5)
+    Serial.println("I2C inicializado para ESP8266 (NodeMCU)");
+#elif defined(ESP32)
+    Wire.begin(21, 22);   // Pines estándar ESP32
+    Serial.println("I2C inicializado para ESP32");
+#else
+    Wire.begin();         // Arduino u otras placas
+    Serial.println("I2C inicializado (modo genérico)");
+#endif
+}
+
+// ----------------------------------------------------
 // Añadir muestra al historial
 // ----------------------------------------------------
 void addSample(float temp, float hum) {
@@ -40,21 +57,21 @@ void addSample(float temp, float hum) {
 // Inicialización del sensor
 // ----------------------------------------------------
 void sensorInit() {
+  initI2C();
+
   // Inicializar historial
   for (unsigned int i = 0; i < HISTORY_SIZE; i++) {
     historyTemp[i] = NAN;
     historyHum[i] = NAN;
   }
 
-  if (!sht4.begin()) {
-    Serial.println("ERROR: No se detectó el sensor SHT4x");
+  if (!sht31.begin(0x44)) {
+    Serial.println("ERROR: No se detectó el sensor SHT30/SHT31");
     sensorOK = false;
   } else {
     sensorOK = true;
-    sht4.setPrecision(SHT4X_HIGH_PRECISION);
-    sht4.setHeater(SHT4X_NO_HEATER);
     lastValidSensorMillis = millis();
-    Serial.println("SHT4x inicializado correctamente");
+    Serial.println("SHT30 inicializado correctamente");
   }
 }
 
@@ -62,25 +79,21 @@ void sensorInit() {
 // Lectura del sensor con validación
 // ----------------------------------------------------
 void leerSensor() {
-  sensors_event_t humidity, temp;
-  sht4.getEvent(&humidity, &temp);
-
-  float newH = humidity.relative_humidity;
-  float newT = temp.temperature;
+  float newT = sht31.readTemperature();
+  float newH = sht31.readHumidity();
 
   bool lecturaValida = true;
 
-  // Validaciones
-  if (isnan(newH) || isnan(newT)) lecturaValida = false;
-  if (newH <= 0 || newT <= 0) lecturaValida = false;
-  if (newH > 100 || newT > 80) lecturaValida = false;
+  if (isnan(newT) || isnan(newH)) lecturaValida = false;
+  if (newT < 5 || newT > 80) lecturaValida = false;
+  if (newH < 0 || newH > 100) lecturaValida = false;
 
   if (lecturaValida) {
     t = newT;
     h = newH;
     lastValidSensorMillis = millis();
   } else {
-    Serial.println("⚠ Lectura inválida del sensor SHT4x");
+    Serial.println("⚠ Lectura inválida del sensor SHT30");
   }
 }
 
@@ -94,13 +107,11 @@ void sensorLoop() {
 
   unsigned long ahora = millis();
 
-  // Guardar en historial
   if (ahora - lastSampleMillis >= SAMPLE_INTERVAL) {
     addSample(t, h);
     lastSampleMillis = ahora;
   }
 
-  // Watchdog: reiniciar si falla 3 minutos
   if (millis() - lastValidSensorMillis > SENSOR_TIMEOUT) {
     Serial.println("❌ Sensor sin datos válidos durante 3 minutos. Reiniciando...");
     delay(500);
