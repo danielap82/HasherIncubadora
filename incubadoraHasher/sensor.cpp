@@ -1,124 +1,124 @@
-#include <Wire.h>
-#include "Adafruit_SHT4x.h"
 #include "sensor.h"
+#include <Adafruit_SHT4x.h>
+#include "config.h"
+#include <Arduino.h>
 
 Adafruit_SHT4x sht4;
+static bool sensor_ok = false;
 
-// Variables de lectura actual
-float h = 0.0f, t = 0.0f;
-bool sensorOK = false;
+// Últimas lecturas válidas
+static float ultimaHumValida = 50.0;
+static float ultimaTempValida = 25.0;
 
-// Historial
+// -------------------------
+// HISTORIAL ANTIGUO
+// -------------------------
 float historyTemp[HISTORY_SIZE];
 float historyHum[HISTORY_SIZE];
-unsigned int historyIndex = 0;
-bool historyFull = false;
+static unsigned int historyCount = 0;
+static unsigned long lastSampleTime = 0;
+static const unsigned long SAMPLE_INTERVAL = 60000; // 1 minuto
 
-// Intervalo entre muestras
-static const unsigned long SAMPLE_INTERVAL = 5000; // 5 s
-static unsigned long lastSampleMillis = 0;
+// -------------------------
 
-// Watchdog del sensor
-unsigned long lastValidSensorMillis = 0;
-const unsigned long SENSOR_TIMEOUT = 180000; // 3 minutos
-
-// ----------------------------------------------------
-// Añadir muestra al historial
-// ----------------------------------------------------
-void addSample(float temp, float hum) {
-  historyTemp[historyIndex] = temp;
-  historyHum[historyIndex]  = hum;
-
-  historyIndex++;
-  if (historyIndex >= HISTORY_SIZE) {
-    historyIndex = 0;
-    historyFull = true;
-  }
-}
-
-// ----------------------------------------------------
-// Inicialización del sensor
-// ----------------------------------------------------
-void sensorInit() {
-  // Inicializar historial
-  for (unsigned int i = 0; i < HISTORY_SIZE; i++) {
-    historyTemp[i] = NAN;
-    historyHum[i] = NAN;
-  }
-
-  if (!sht4.begin()) {
-    Serial.println("ERROR: No se detectó el sensor SHT4x");
-    sensorOK = false;
-  } else {
-    sensorOK = true;
+bool sensorInit() {
+    if (!sht4.begin()) {
+        sensor_ok = false;
+        return false;
+    }
     sht4.setPrecision(SHT4X_HIGH_PRECISION);
     sht4.setHeater(SHT4X_NO_HEATER);
-    lastValidSensorMillis = millis();
-    Serial.println("SHT4x inicializado correctamente");
-  }
+    sensor_ok = true;
+    return true;
 }
 
-// ----------------------------------------------------
-// Lectura del sensor con validación
-// ----------------------------------------------------
-void leerSensor() {
-  sensors_event_t humidity, temp;
-  sht4.getEvent(&humidity, &temp);
-
-  float newH = humidity.relative_humidity;
-  float newT = temp.temperature;
-
-  bool lecturaValida = true;
-
-  // Validaciones
-  if (isnan(newH) || isnan(newT)) lecturaValida = false;
-  if (newH <= 0 || newT <= 0) lecturaValida = false;
-  if (newH > 100 || newT > 80) lecturaValida = false;
-
-  if (lecturaValida) {
-    t = newT;
-    h = newH;
-    lastValidSensorMillis = millis();
-  } else {
-    Serial.println("⚠ Lectura inválida del sensor SHT4x");
-  }
+bool sensorIsOK() {
+    return sensor_ok;
 }
 
-// ----------------------------------------------------
-// Bucle del sensor
-// ----------------------------------------------------
+float sensorGetHumRaw() {
+    if (!sensor_ok) return ultimaHumValida;
+
+    sensors_event_t hum, temp;
+    if (!sht4.getEvent(&hum, &temp)) {
+        return ultimaHumValida;
+    }
+    return hum.relative_humidity;
+}
+
+float sensorGetTempRaw() {
+    if (!sensor_ok) return ultimaTempValida;
+
+    sensors_event_t hum, temp;
+    if (!sht4.getEvent(&hum, &temp)) {
+        return ultimaTempValida;
+    }
+    return temp.temperature;
+}
+
+float sensorGetHum() {
+    float h = sensorGetHumRaw();
+
+    if (isnan(h) || h < 5 || h > 100) {
+        return ultimaHumValida;
+    }
+
+    if (fabs(h - ultimaHumValida) > 20) {
+        return ultimaHumValida;
+    }
+
+    ultimaHumValida = h;
+    return h;
+}
+
+float sensorGetTemp() {
+    float t = sensorGetTempRaw();
+
+    if (isnan(t) || t < -20 || t > 80) {
+        return ultimaTempValida;
+    }
+
+    if (fabs(t - ultimaTempValida) > 15) {
+        return ultimaTempValida;
+    }
+
+    ultimaTempValida = t;
+    return t;
+}
+
+// -------------------------
+// HISTORIAL ANTIGUO
+// -------------------------
 void sensorLoop() {
-  if (!sensorOK) return;
+    unsigned long now = millis();
 
-  leerSensor();
+    if (now - lastSampleTime < SAMPLE_INTERVAL)
+        return;
 
-  unsigned long ahora = millis();
+    lastSampleTime = now;
 
-  // Guardar en historial
-  if (ahora - lastSampleMillis >= SAMPLE_INTERVAL) {
-    addSample(t, h);
-    lastSampleMillis = ahora;
-  }
+    float h = sensorGetHum();
+    float t = sensorGetTemp();
 
-  // Watchdog: reiniciar si falla 3 minutos
-  if (millis() - lastValidSensorMillis > SENSOR_TIMEOUT) {
-    Serial.println("❌ Sensor sin datos válidos durante 3 minutos. Reiniciando...");
-    delay(500);
-    ESP.restart();
-  }
+    if (historyCount < HISTORY_SIZE) {
+        historyHum[historyCount] = h;
+        historyTemp[historyCount] = t;
+        historyCount++;
+    } else {
+        // Desplazar todo 1 posición hacia arriba
+        for (int i = 1; i < HISTORY_SIZE; i++) {
+            historyHum[i - 1] = historyHum[i];
+            historyTemp[i - 1] = historyTemp[i];
+        }
+        historyHum[HISTORY_SIZE - 1] = h;
+        historyTemp[HISTORY_SIZE - 1] = t;
+    }
 }
-
-// ----------------------------------------------------
-// Getters
-// ----------------------------------------------------
-float sensorGetTemp() { return t; }
-float sensorGetHum()  { return h; }
-bool sensorIsOK()     { return sensorOK; }
 
 unsigned int sensorGetHistoryCount() {
-  return historyFull ? HISTORY_SIZE : historyIndex;
+    return historyCount;
 }
 
 unsigned long sensorGetSampleIntervalSeconds() {
-  return SAMPLE_INTERVAL / 1000;
+    return SAMPLE_INTERVAL / 1000;
 }

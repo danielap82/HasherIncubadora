@@ -24,16 +24,8 @@ void setup() {
 }
 
 void loop() {
-  // Webserver (HTTP + OTA)
   webLoop();
-
-  // WiFi se gestiona por la propia librería
-  // Sensor + watchdog + historial
-  sensorLoop();
-
-  // Lógica de control del relé (automático)
+  sensorLoop();   // <-- necesario para el historial antiguo
   relayLoop();
-
-  // MQTT (reconexión, publicación, recepción)
- // mqttLoop();
+  yield();
 }

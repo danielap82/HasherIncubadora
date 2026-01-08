@@ -1,11 +1,14 @@
-#pragma once
-#include <Arduino.h>
+#ifndef RELAY_H
+#define RELAY_H
 
 void relayInit();
-void relayLoop();
-
 void relaySet(bool on);
 bool relayIsOn();
-
-// Tiempo desde la última activación (s)
+void relayLoop();
 unsigned long relayGetSecondsSinceActivation();
+
+extern unsigned long ultimoRiego;
+extern float humedadEnUltimoRiego;
+extern float temperaturaEnUltimoRiego;
+
+#endif
