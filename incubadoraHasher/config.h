@@ -1,6 +1,14 @@
 #pragma once
 #include <Arduino.h>
 
+// -----------------------------
+// Tamaño del historial (global)
+// -----------------------------
+#define HISTORY_SIZE 60
+// o si prefieres:
+// const int HISTORY_SIZE = 60;
+// -----------------------------
+
 struct Config {
   char ssid[32];
   char pass[32];
