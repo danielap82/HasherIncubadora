@@ -12,6 +12,9 @@ unsigned long relayLastActivation = 0;
 
 float humedadEnUltimoRiego = 0;
 float temperaturaEnUltimoRiego = 0;
+float ultimaHumRiego = 0;
+float ultimaTempRiego = 0;
+unsigned long ultimoRiegoTimestamp = 0;
 
 const unsigned long RELAY_MAX_ON_TIME = 300000; // 5 min
 static int lecturasBajas = 0;
@@ -83,7 +86,9 @@ void relayLoop() {
 
     humedadEnUltimoRiego = humedad;
     temperaturaEnUltimoRiego = sensorGetTemp();
-
+    ultimaHumRiego = sensorGetHum();
+    ultimaTempRiego = sensorGetTemp();
+    ultimoRiegoTimestamp = millis();
     Serial.println("Humedad baja durante 3 lecturas. Iniciando riego...");
     relaySet(true);
     inicioRiego = ahora;

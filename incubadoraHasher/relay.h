@@ -10,5 +10,7 @@ unsigned long relayGetSecondsSinceActivation();
 extern unsigned long ultimoRiego;
 extern float humedadEnUltimoRiego;
 extern float temperaturaEnUltimoRiego;
-
+extern float ultimaHumRiego;
+extern float ultimaTempRiego;
+extern unsigned long ultimoRiegoTimestamp;
 #endif
