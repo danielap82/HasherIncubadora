@@ -37,7 +37,7 @@ bool relayIsOn() {
 }
 
 void relayLoop() {
-  // Protección anti-bloqueo: si por lo que sea se queda encendido demasiado tiempo, lo apagamos
+  // Protección anti-bloqueo
   if (releActivo && relayLastActivation > 0) {
     if (millis() - relayLastActivation > RELAY_MAX_ON_TIME) {
       Serial.println("Protección anti-bloqueo: relé llevaba demasiado tiempo activado. Apagando...");
@@ -49,16 +49,21 @@ void relayLoop() {
   if (!sensorIsOK()) return;
 
   unsigned long ahora = millis();
+  float humedad = sensorGetHum();
 
-  if (ahora - ultimoRiego >= cfg.tiempoEspera) {
-    if (sensorGetHum() < cfg.umbralHumedad) {
-      Serial.println("Humedad por debajo del umbral. Activando actuador (modo automático)...");
-      relaySet(true);
-      delay(cfg.tiempoRiego);
-      relaySet(false);
-      ultimoRiego = millis();
-    }
-  }
+  // Condición 1: ha pasado el tiempo de espera
+  if (ahora - ultimoRiego < cfg.tiempoEspera) return;
+
+  // Condición 2: humedad por debajo del umbral
+  if (humedad >= cfg.umbralHumedad) return;
+
+  // Si llegamos aquí → humedad baja + tiempo de espera cumplido
+  Serial.println("Humedad por debajo del umbral. Activando actuador (modo automático)...");
+  relaySet(true);
+  delay(cfg.tiempoRiego);
+  relaySet(false);
+
+  ultimoRiego = millis();
 }
 
 // Segundos desde la última activación
