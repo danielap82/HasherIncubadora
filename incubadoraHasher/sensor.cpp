@@ -17,8 +17,7 @@ float historyTemp[HISTORY_SIZE];
 float historyHum[HISTORY_SIZE];
 static unsigned int historyCount = 0;
 static unsigned long lastSampleTime = 0;
-static const unsigned long SAMPLE_INTERVAL = 60000; // 1 minuto
-
+static const unsigned long SAMPLE_INTERVAL = 5000; // 5 segundos
 // -------------------------
 
 bool sensorInit() {
@@ -92,6 +91,7 @@ float sensorGetTemp() {
 void sensorLoop() {
     unsigned long now = millis();
 
+    // Intervalo entre muestras
     if (now - lastSampleTime < SAMPLE_INTERVAL)
         return;
 
@@ -100,12 +100,13 @@ void sensorLoop() {
     float h = sensorGetHum();
     float t = sensorGetTemp();
 
+    // Añadir al historial
     if (historyCount < HISTORY_SIZE) {
         historyHum[historyCount] = h;
         historyTemp[historyCount] = t;
         historyCount++;
     } else {
-        // Desplazar todo 1 posición hacia arriba
+        // Desplazar FIFO
         for (int i = 1; i < HISTORY_SIZE; i++) {
             historyHum[i - 1] = historyHum[i];
             historyTemp[i - 1] = historyTemp[i];
