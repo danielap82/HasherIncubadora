@@ -25,7 +25,7 @@ void relayInit() {
     releActivo = false;
     ultimoRiego = 0;
     inicioRiego = 0;
-    relayLastActivation = 0;
+    relayLastActivation = millis();
     lecturasBajas = 0;
 }
 

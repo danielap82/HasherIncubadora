@@ -97,7 +97,12 @@ server.on("/debug", HTTP_GET, []() {
 // ------------------------------------------------------
 server.on("/history", HTTP_GET, []() {
     unsigned int count = sensorGetHistoryCount();
+    
+    // 1. Inicializa variables para calcular las sumas
+    float totalTemp = 0;
+    float totalHum = 0;
 
+    // 2. Comienza a construir el JSON (la primera parte sigue igual)
     String json = "{";
     json += "\"count\":" + String(count) + ",";
     json += "\"interval\":" + String(sensorGetSampleIntervalSeconds()) + ",";
@@ -105,7 +110,9 @@ server.on("/history", HTTP_GET, []() {
     // Temperaturas
     json += "\"temp\":[";
     for (unsigned int i = 0; i < count; i++) {
-        json += String(historyTemp[i], 2);
+        float currentTemp = historyTemp[i]; // Guarda el valor actual
+        totalTemp += currentTemp;            // Suma al total
+        json += String(currentTemp, 2);
         if (i < count - 1) json += ",";
     }
     json += "],";
@@ -113,11 +120,22 @@ server.on("/history", HTTP_GET, []() {
     // Humedades
     json += "\"hum\":[";
     for (unsigned int i = 0; i < count; i++) {
-        json += String(historyHum[i], 2);
+        float currentHum = historyHum[i]; // Guarda el valor actual
+        totalHum += currentHum;            // Suma al total
+        json += String(currentHum, 2);
         if (i < count - 1) json += ",";
     }
-    json += "]";
+    json += "],"; // Nota: he añadido una coma aquí para el nuevo campo siguiente
 
+    // 3. Calcula las medias
+    float avgTemp = (count > 0) ? (totalTemp / count) : 0;
+    float avgHum = (count > 0) ? (totalHum / count) : 0;
+
+    // 4. Añade los nuevos campos de media al JSON
+    // Usamos String(..., 2) para limitar a dos decimales en la salida JSON
+    json += "\"temp_media\":" + String(avgTemp, 2) + ",";
+    json += "\"hum_media\":" + String(avgHum, 2);
+    
     json += "}";
 
     server.send(200, "application/json", json);
@@ -171,6 +189,40 @@ String estilos() {
     "button{padding:10px 15px;border:none;border-radius:5px;background:#1976d2;color:white;cursor:pointer;margin-right:10px;}"
     "button:hover{background:#145ca0;}"
     "canvas{background:#1e1e1e;border:1px solid #333;border-radius:10px;}"
+
+    /* === ESTILOS NUEVOS PARA EL BLOQUE DE ESTADÍSTICAS === */
+    ".stats-block{"
+      "margin-top:20px;"
+      "padding:15px 18px;"
+      "background:#1e1e1e;"
+      "border-radius:10px;"
+      "border:1px solid #333;"
+    "}"
+    ".stats-block h3{"
+      "margin:0 0 12px 0;"
+      "font-size:1.2em;"
+      "color:#e0e0e0;"
+    "}"
+    ".stats-row{"
+      "display:flex;"
+      "justify-content:space-between;"
+      "gap:20px;"
+    "}"
+    ".stat-item{"
+      "display:flex;"
+      "flex-direction:column;"
+    "}"
+    ".stat-label{"
+      "font-size:0.9em;"
+      "color:#b0b0b0;"
+    "}"
+    ".stat-value{"
+      "font-size:1.3em;"
+      "font-weight:bold;"
+      "color:#e0e0e0;"
+    "}"
+    /* === FIN ESTILOS ESTADÍSTICAS === */
+
     "</style>"
   );
 }
@@ -198,6 +250,19 @@ void handleRoot() {
   html += "<div class='card'><b>Tiempo ON:</b> <span id='tiempoValue'>-- ms</span></div>";
   html += "<div class='card'><b>Tiempo desde último riego:</b> <span id='riegoTime'>-- s</span></div>";
   html += "<div class='card'><b>Relé:</b> <span id='releState'>--</span></div>";
+  html += "<div class='stats-block'>";
+  html += "  <h3>Estadísticas</h3>";
+  html += "  <div class='stats-row'>";
+  html += "    <div class='stat-item'>";
+  html += "      <span class='stat-label'>Temperatura media</span>";
+  html += "      <span class='stat-value' id='temp_media'>-- ºC</span>";
+  html += "    </div>";
+  html += "    <div class='stat-item'>";
+  html += "      <span class='stat-label'>Humedad media</span>";
+  html += "      <span class='stat-value' id='hum_media'>-- %</span>";
+  html += "    </div>";
+  html += "  </div>";
+  html += "</div>";
 
   html += "<button onclick='controlRele(\"ON\")'>Relé ON</button>";
   html += "<button onclick='controlRele(\"OFF\")'>Relé OFF</button>";
@@ -229,6 +294,8 @@ void handleRoot() {
   html += "{label:'Temp',data:d.temp,borderColor:'red',backgroundColor:'rgba(255,0,0,0.2)'},";
   html += "{label:'Hum',data:d.hum,borderColor:'cyan',backgroundColor:'rgba(0,255,255,0.2)'}";
   html += "]}});";
+  html += "document.getElementById('temp_media').textContent = d.temp_media.toFixed(1) + ' ºC';";
+  html += "document.getElementById('hum_media').textContent  = d.hum_media.toFixed(1) + ' %';";
   html += "});";
   html += "}";
   html += "function controlRele(cmd){fetch('/rele?cmd='+cmd).then(()=>updateStatus());}";
