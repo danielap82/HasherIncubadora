@@ -18,6 +18,8 @@ void relayInit() {
   digitalWrite(relePin, HIGH); // Relé activo en LOW → reposo HIGH
   releActivo = false;
   relayLastActivation = 0;
+  relayLastActivation = millis();
+
 }
 
 void relaySet(bool on) {

@@ -72,8 +72,13 @@ void leerSensor() {
 
   // Validaciones
   if (isnan(newH) || isnan(newT)) lecturaValida = false;
-  if (newH <= 0 || newT <= 0) lecturaValida = false;
-  if (newH > 100 || newT > 80) lecturaValida = false;
+
+  // Filtrar lecturas erróneas típicas del SHT4x (1.99, 2.x, 3.x...)
+  if (newH < 5.0) lecturaValida = false;     // evita 1.99 y similares
+  
+  // Límites superiores realistas
+  if (newH > 100.0) lecturaValida = false;
+  if (newT > 80.0) lecturaValida = false;
 
   if (lecturaValida) {
     t = newT;
